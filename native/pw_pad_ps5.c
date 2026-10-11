@@ -78,7 +78,7 @@ failed:
     return PW_ERR_STATE;
 }
 
-int pw_pad_ps5_open_other(PwPadPs5 *pad,const PwPadPs5 *first,
+int pw_pad_ps5_open_other(PwPadPs5 *pad,const PwPadPs5 *first,int32_t after,
                           const PwPadKeyMap *map,size_t map_count)
 {
     int32_t ids[PW_PAD_PS5_USERS];
@@ -89,8 +89,12 @@ int pw_pad_ps5_open_other(PwPadPs5 *pad,const PwPadPs5 *first,
     int status=pw_pad_init(&pad->core,map,map_count);if(status!=PW_OK)return status;
     for(int i=0;i<PW_PAD_PS5_USERS;i++)ids[i]=-1;
     if(pad->ops.login_users(ids)<0)return PW_ERR_STATE;
-    for(int i=0;i<PW_PAD_PS5_USERS && pad->user_id<0;i++)
+    int start=0;
+    for(int i=0;i<PW_PAD_PS5_USERS;i++)if(after>=0 && ids[i]==after){start=i+1;break;}
+    for(int k=0;k<PW_PAD_PS5_USERS && pad->user_id<0;k++) {
+        int i=(start+k)%PW_PAD_PS5_USERS;
         if(ids[i]>=0 && ids[i]!=first->user_id)pad->user_id=ids[i];
+    }
     if(pad->user_id<0)return PW_ERR_NOT_FOUND;
     pad->pad_handle=pad->ops.pad_open(pad->user_id,0,0,NULL);
     if(pad->pad_handle<0)return PW_ERR_STATE;

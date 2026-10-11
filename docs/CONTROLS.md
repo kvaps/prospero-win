@@ -118,9 +118,11 @@ player2 = atomic-bomberman-p2
 The second DualSense has to be signed in as another PS5 user (a second
 account or a guest): the app opens the pad of a signed-in user other than
 the one who started it, and looks again every few seconds while there is
-none, so the second player can sign in after the game has started. Its
-buttons send keys through `player2`'s preset only: it never acts as an Xbox
-controller and never moves the pointer, and closing the game with
+none, so the second player can sign in after the game has started. With
+more users signed in, a pick that shows no controller for a few seconds,
+or loses it, makes way for the next user. Its buttons send keys through
+`player2`'s preset only: it never acts as an Xbox controller, the preset's
+mouse buttons and `mouse` stick are ignored, and closing the game with
 Options + Create stays the first player's.
 
 ## Closing a game

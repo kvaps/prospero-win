@@ -944,6 +944,7 @@ int main(int argc, char **argv)
     static PwPadPs5 pad2;
     static PwGameInput game_input2;
     int player2 = 0, pad2_status = PW_ERR_NOT_FOUND;
+    uint64_t pad2_seen = 0;   /* the tick pad 2 last reported a controller */
     const PwGameProfile *game = NULL;
     int scaling = PW_PRESENT_SCALE_FIT;
     PwWinePointer pointer = { 0, 0 };
@@ -1183,7 +1184,7 @@ int main(int argc, char **argv)
             pad_status = pw_pad_ps5_open(&pad, &pad_ops, pad_open_map,
                                          sizeof(pad_open_map) / sizeof(pad_open_map[0]));
         if (player2 && pad_status == PW_OK)
-            pad2_status = pw_pad_ps5_open_other(&pad2, &pad, pad_open_map,
+            pad2_status = pw_pad_ps5_open_other(&pad2, &pad, -1, pad_open_map,
                                                 sizeof(pad_open_map) / sizeof(pad_open_map[0]));
         /* A USB keyboard and mouse, the foreground user's, as the pad's. */
         if (post_input) {
@@ -1349,26 +1350,6 @@ int main(int argc, char **argv)
                 if (post_input(&events[i]) == 0) posted++;
                 else refused++;
             }
-            /* The second player's pad: keys only, through its own preset;
-             * a user who signs in later is found by a retry every few
-             * seconds. Closing the game and rumble stay the first pad's. */
-            if (player2 && pad2_status != PW_OK && pad2_status != PW_ERR_UNSUPPORTED &&
-                tick % (3 * PW_WINE64_TICKS_PER_S) == 0) {
-                pad2_status = pw_pad_ps5_open_other(&pad2, &pad, pad_open_map,
-                                                    sizeof(pad_open_map) / sizeof(pad_open_map[0]));
-                if (pad2_status == PW_OK)
-                    PS5LOG_LOG("PW_WINE64 pad2 status=%s user=%d", pw_result_name(pad2_status),
-                               (int)pad2.user_id);
-            }
-            if (pad2_status == PW_OK && pw_pad_ps5_read(&pad2) == PW_OK) {
-                size_t count2 = pw_wine_game_inputs(&game_input2, pad2.core.pressed_edges,
-                                                    pad2.core.released_edges, events,
-                                                    sizeof(events) / sizeof(events[0]) - 1);
-                for (size_t i = 0; i < count2; i++) {
-                    if (post_input(&events[i]) == 0) posted++;
-                    else refused++;
-                }
-            }
             /* The rumble the game asked for: XInput's left motor is the
              * DualSense's large one, speeds 0..65535 become 0..255. */
             uint32_t left, right;
@@ -1377,6 +1358,40 @@ int main(int argc, char **argv)
                 if (!vibrations++ || vibrate != PW_OK)
                     PS5LOG_LOG("PW_WINE64 rumble left=%u right=%u status=%s rc=%d", (unsigned)left,
                                (unsigned)right, pw_result_name(vibrate), pad.vibration_rc);
+            }
+        }
+        /* The second player's pad: keys only, through its own preset, read
+         * whether or not the first pad's read worked. A user who signs in
+         * later is found by a retry every few seconds; a pick that shows no
+         * controller for that long, or loses it, is closed and the next
+         * signed-in user tried. Closing the game and rumble stay the first
+         * pad's. */
+        if (player2 && post_input) {
+            const uint64_t retry = 3 * PW_WINE64_TICKS_PER_S;
+            if (pad2_status == PW_OK && pw_pad_ps5_read(&pad2) == PW_OK) {
+                if (pad2.core.connected) pad2_seen = tick;
+                size_t count2 = pw_wine_game_inputs(&game_input2, pad2.core.pressed_edges,
+                                                    pad2.core.released_edges, events,
+                                                    sizeof(events) / sizeof(events[0]) - 1);
+                for (size_t i = 0; i < count2; i++) {
+                    if (post_input(&events[i]) == 0) posted++;
+                    else refused++;
+                }
+            }
+            int32_t after = -1;
+            if (pad2_status == PW_OK && !pad2.core.connected && tick - pad2_seen >= retry) {
+                after = pad2.user_id;
+                (void)pw_pad_ps5_close(&pad2);
+                pad2_status = PW_ERR_NOT_FOUND;
+            }
+            if (pad2_status != PW_OK && pad2_status != PW_ERR_UNSUPPORTED &&
+                (after >= 0 || tick % retry == 0)) {
+                pad2_status = pw_pad_ps5_open_other(&pad2, &pad, after, pad_open_map,
+                                                    sizeof(pad_open_map) / sizeof(pad_open_map[0]));
+                pad2_seen = tick;
+                if (pad2_status == PW_OK && pad2.user_id != after)
+                    PS5LOG_LOG("PW_WINE64 pad2 status=%s user=%d", pw_result_name(pad2_status),
+                               (int)pad2.user_id);
             }
         }
         if (__atomic_load_n(&display_request, __ATOMIC_ACQUIRE) &&

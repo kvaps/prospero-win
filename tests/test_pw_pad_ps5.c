@@ -11,7 +11,7 @@ static int terminate(void){terminate_calls++;return 0;}
 static int pad_init(void){pad_init_calls++;return 0;}
 /* User 42 is in the foreground (handle 7); user 43 signs in as player 2 (handle 8). */
 static int pad_open(int32_t u,int32_t t,int32_t i,const void *p)
-{assert((u==42||u==43)&&!t&&!i&&!p);open_calls++;return u==42?7:8;}
+{assert((u==42||u==43||u==44)&&!t&&!i&&!p);open_calls++;return u==42?7:8;}
 static int pad_read(int32_t h,PwPadPs5Data *s,int32_t n)
 {assert((h==7||h==8)&&n==64);read_calls++;if(read_rc<0)return read_rc;
  memcpy(s,fixture,(size_t)fixture_count*sizeof(*s));return fixture_count;}
@@ -93,19 +93,29 @@ int main(void)
     PwPadPs5 first,second;
     user_init_rc=0;int terminated=terminate_calls,opened=open_calls;
     assert(pw_pad_ps5_open(&first,&ops,map,1)==PW_OK && first.owns_user_service);
-    assert(pw_pad_ps5_open_other(&second,&first,map,1)==PW_ERR_NOT_FOUND && !second.opened);
+    assert(pw_pad_ps5_open_other(&second,&first,-1,map,1)==PW_ERR_NOT_FOUND && !second.opened);
     signed_in[2]=43;
-    assert(pw_pad_ps5_open_other(&second,&first,map,1)==PW_OK);
+    assert(pw_pad_ps5_open_other(&second,&first,-1,map,1)==PW_OK);
     assert(second.opened && second.user_id==43 && second.pad_handle==8 && !second.owns_user_service);
     assert(open_calls==opened+2);
     fixture[0]=(PwPadPs5Data){.buttons=L1,.connected=1,.timestamp=4000,.connected_count=1};
     fixture_count=1;assert(pw_pad_ps5_read(&second)==PW_OK && second.core.pressed_edges==L1);
     assert(pw_pad_ps5_close(&second)==PW_OK && terminate_calls==terminated);
-    login_rc=-1;assert(pw_pad_ps5_open_other(&second,&first,map,1)==PW_ERR_STATE);login_rc=0;
+    /* Three users: the next pick after 43 is 44, then round to 43 again;
+     * an id no longer signed in starts from the top. */
+    signed_in[3]=44;
+    assert(pw_pad_ps5_open_other(&second,&first,43,map,1)==PW_OK && second.user_id==44);
+    assert(pw_pad_ps5_close(&second)==PW_OK);
+    assert(pw_pad_ps5_open_other(&second,&first,44,map,1)==PW_OK && second.user_id==43);
+    assert(pw_pad_ps5_close(&second)==PW_OK);
+    assert(pw_pad_ps5_open_other(&second,&first,77,map,1)==PW_OK && second.user_id==43);
+    assert(pw_pad_ps5_close(&second)==PW_OK && terminate_calls==terminated);
+    signed_in[3]=-1;
+    login_rc=-1;assert(pw_pad_ps5_open_other(&second,&first,-1,map,1)==PW_ERR_STATE);login_rc=0;
     first.ops.login_users=NULL;
-    assert(pw_pad_ps5_open_other(&second,&first,map,1)==PW_ERR_UNSUPPORTED);
+    assert(pw_pad_ps5_open_other(&second,&first,-1,map,1)==PW_ERR_UNSUPPORTED);
     first.ops.login_users=login_users;
     assert(pw_pad_ps5_close(&first)==PW_OK && terminate_calls==terminated+1);
-    assert(pw_pad_ps5_open_other(&second,&first,map,1)==PW_ERR_PRECONDITION);
+    assert(pw_pad_ps5_open_other(&second,&first,-1,map,1)==PW_ERR_PRECONDITION);
     return 0;
 }

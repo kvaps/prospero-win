@@ -48,7 +48,7 @@ static void test_load(void)
     write_file("profiles/Upper.profile", APP("upper", "Upper"));
     write_file("profiles/notes.txt", "not a profile");
     write_file("input/pinball.input", "[input]\nl1 = z\nr1 = slash\ncross = space\n");
-    write_file("input/pinball-p2.input", "[input]\nmode = xinput\ncross = s\n");
+    write_file("input/pinball-p2.input", "[input]\nmode = xinput\nmouse = left_stick\ncross = s\nr2 = mouse_left\n");
 
     assert(pw_wine_library_load(&library, root) == PW_OK);
     assert(library.listed_by == PW_WINE_LIBRARY_SCANNED && library.count == 3 && !library.scan_error);
@@ -77,6 +77,7 @@ static void test_load(void)
     assert(pw_wine_library_player2_input(pinball, root, &input) == PW_OK);
     assert(input.bindings[0].code == 'S' && input.mode == PW_GAME_INPUT_KEYBOARD);
     assert(input.bindings[4].kind == PW_GAME_BIND_UNSET);                       /* not player 1's */
+    assert(input.mouse == PW_GAME_STICK_NONE && input.bindings[7].kind == PW_GAME_BIND_NONE);   /* no pointer */
     assert(pw_wine_library_player2_input(solitaire, root, &input) == PW_ERR_NOT_FOUND);
     assert(pw_wine_library_player2_input(NULL, root, &input) == PW_ERR_PRECONDITION);
     assert(pw_wine_library_load(NULL, root) == PW_ERR_PRECONDITION);

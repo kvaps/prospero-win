@@ -231,7 +231,11 @@ int pw_wine_library_player2_input(const PwGameProfile *profile, const char *root
     if (!profile->input.player2[0]) return PW_ERR_NOT_FOUND;
     status = load_preset(root, profile->input.player2, input);
     /* Only keys for now: a second XInput controller needs the sink's pad
-     * state per controller. */
+     * state per controller, and the pointer is the first player's, so the
+     * preset's mouse buttons and stick are dropped. */
     input->mode = PW_GAME_INPUT_KEYBOARD;
+    input->mouse = PW_GAME_STICK_NONE;
+    for (size_t i = 0; i < sizeof(input->bindings) / sizeof(input->bindings[0]); i++)
+        if (input->bindings[i].kind == PW_GAME_BIND_MOUSE) input->bindings[i].kind = PW_GAME_BIND_NONE;
     return status;
 }
